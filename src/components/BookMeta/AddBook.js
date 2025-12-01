@@ -148,7 +148,7 @@ const AddBook = () => {
       <div style={{ textAlign: "center" }}>
         <h2 className="text-center font-extrabold text-2xl m-4">Barcode Scanner</h2>
         <video
-          style={{ margin: "auto", borderRadius: "10px", transform: "scaleX(-1)", objectFit: "cover", width: "800px", height: "60vh" }}
+          style={{ margin: "auto", borderRadius: "10px", objectFit: "cover", width: "800px", height: "60vh" }}
           ref={videoRef}
           width="500"
           height="500"

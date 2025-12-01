@@ -22,11 +22,10 @@ import MyAccount from './components/UserMeta/MyAccount';
 import Genqr from './components/ReaderMeta/ReaderGenqr';
 import Dashboard from './components/Dashboard';
 import 'react-toastify/dist/ReactToastify.css';
-import { ToastContainer, toast } from 'react-toastify';
-import AddReaderTCS from './components/ReaderMeta/AddReaderTCS';
-import AboutTCS from './components/About/AboutTCS';
+import { ToastContainer} from 'react-toastify';
 import NotFoundPage from './components/NotFoundPage';
 import BarcodeReaderBetaV from './components/BarcodeReaderBeta/BarcodeReaderBetaV';
+import Element from './components/ExchangeFlow/Exchange';
 
 const App = () => {
   return (
@@ -52,6 +51,7 @@ const App = () => {
      <Route path="/return" element={<Return/>}/>
      <Route path="/addbook" element={<AddBook/>}/>
      <Route path="/addreader" element={<AddReader/>}/>
+     <Route path="/exchange" element={<Element/>}/>
      <Route path="/services" element={<Services/>}/>
      <Route path="/login-signup" element={<Login/>}/>
      <Route path="/signup" element={<Signup/>}/>
