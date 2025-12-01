@@ -1,0 +1,69 @@
+.left-section,
+.middle-section,
+.right-section {
+  flex: 1;
+  margin: 20px;
+  padding: 20px;
+  background-color: #e0f7fa; /* Light teal background for each section */
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.title {
+  font-size: 2em;
+  font-weight: bold;
+  color: #4a148c;
+}
+
+.subtitle {
+  font-size: 1.5em;
+  color: #00796b; /* Teal color */
+  font-weight: 500;
+}
+
+.image-placeholder {
+  height: 200px;
+  /* background-image: url('/path-to-image.jpg'); Use your image URL */
+  background-size: cover;
+  background-position: center;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.steps-title {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #388e3c; /* Green color */
+}
+
+.description {
+  font-size: 1.2em;
+  margin-top: 10px;
+  color: #616161; /* Dark gray color */
+}
+
+.steps-list {
+  margin-top: 20px;
+  list-style: none;
+  padding: 0;
+  list-style: disc inside;
+}
+
+.steps-list li {
+  margin-bottom: 10px;
+  font-size: 1.1em;
+  color: #424242; /* Dark gray color */
+}
+
+.addlib-title {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #1976d2; /* Blue color */
+}
+
+.addlib-description,
+.call-to-action {
+  margin-top: 10px;
+  font-size: 1.2em;
+  color: #616161; /* Dark gray color */
+}
