@@ -1,158 +1,82 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/browser";
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+import React, { useContext, useState, useEffect } from "react";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { globalContext } from '../../contextapi/GlobalContext'
 import { BounceLoader, DotLoader } from "react-spinners";
-import QrFrame from '../../assets/qr-frame.svg'
-
-
+import { useNavigate } from "react-router-dom";
+import BookBulkUploadModal from './BookBulkUploadModal'
+import BookQrPopUp from "./BookQrPopUp";
 
 const AddBook = () => {
-  const videoRef = useRef(null);
-  const readerRef = useRef(null);
-  const scanningPausedRef = useRef(false);
-  const mountedRef = useRef(true);
-  const [result, setResult] = useState("");
-  const globalCon = useContext(globalContext);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPopupOpen, setPopupOpen] = React.useState(false);
+  const [book_id, setBook_id] = useState(null);
+  const [book_title, setBook_title] = useState(null);
+  const [book_isbn, setBook_isbn] = useState(null);
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => setIsModalOpen(false);
+  const navigate = useNavigate();
+  const globalCon = useContext(globalContext);
+  const [userData, setUserData] = useState({ bookname: "", isbn: "", author: "", genre: "", subgenre: "", publisher: "" });
   const [loader, setLoader] = useState(false);
-  const [bookData, setBookData] = useState({ bookname: "", isbn: "", author: "", genre: "", subgenre: "", publisher: "" });
-
-
-
+  const handleChange = (e) => {
+    setUserData({ ...userData, [e.target.name]: e.target.value })
+  }
 
   useEffect(() => {
-    // restrict decoder to barcode formats only (no QR_CODE)
-    const hints = new Map();
-    const barcodeFormats = [
-      BarcodeFormat.CODE_128,
-      BarcodeFormat.CODE_39,
-      BarcodeFormat.EAN_13,
-      BarcodeFormat.EAN_8,
-      BarcodeFormat.UPC_A,
-      BarcodeFormat.UPC_E,
-      BarcodeFormat.ITF,
-      BarcodeFormat.CODABAR
-    ];
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, barcodeFormats);
-    mountedRef.current = true;
-    readerRef.current = new BrowserMultiFormatReader(hints);
-
-    const startReader = async () => {
-      if (!videoRef.current || !readerRef.current) return;
-      try {
-        readerRef.current.decodeFromVideoDevice(null, videoRef.current, (res, err) => {
-          if (res) {
-            // throttle handling to avoid rapid repeated scans
-            if (!scanningPausedRef.current) {
-              scanningPausedRef.current = true;
-              setResult(res.getText());
-              // stop continuous scanning and restart after cooldown
-              try { readerRef.current.reset(); } catch (e) {}
-              setTimeout(() => {
-                if (!mountedRef.current) return;
-                try { startReader(); } catch (e) {}
-                scanningPausedRef.current = false;
-              }, 1500); // 1.5s cooldown between scans
-            }
-          }
-          // NotFoundException is expected frequently while scanning; log other errors
-          if (err && err.name !== "NotFoundException") {
-            console.error("Barcode decode error:", err);
-          }
-        }).catch((e) => {
-          // Starting the decoder can fail if camera is blocked
-          console.error("Failed to start decodeFromVideoDevice:", e);
-        });
-      } catch (e) {
-        console.error('Error initializing barcode reader', e);
+    if (!localStorage.getItem("token")) {
+      navigate("/login-signup")
+    }
+  }, [])
+  const checkVal = () => {
+    let isbn = document.getElementById("isbn")
+    if (userData.isbn.length > 13 || userData.isbn.length < 10) {
+      isbn.setCustomValidity("Invalid ISBN");
+    } else {
+      isbn.setCustomValidity("");
+    }
+  }
+  const handleSignup = (e) => {
+    e.preventDefault();
+    const saveData = async () => {
+      if (userData.isbn.length >= 10 || userData.isbn.length <= 13) {
+        setLoader(true)
+        const res = await globalCon.addBook(userData.bookname, userData.isbn, userData.author, userData.genre, userData.subgenre, userData.publisher);
+        setBook_id(res.book_copy_id)
+        setBook_title(userData.bookname)
+        setBook_isbn(userData.isbn)
+        setLoader(false)
+        setUserData({ bookname: "", isbn: "", author: "", genre: "", subgenre: "", publisher: "" })
+        if (!res) {
+          toast.error('Something went wrong!!', {
+            position: "top-center",
+            autoClose: 1000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            theme: "light",
+          });
+        } else {
+          toast.success('Added Successfully', {
+            position: "top-center",
+            autoClose: 1000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            theme: "light",
+          });
+          setPopupOpen(true);
+        }
+      } else {
+        checkVal();
       }
     }
-
-    // kick off reader
-    startReader();
-
-    return () => {
-      mountedRef.current = false;
-      try {
-        readerRef.current?.reset();
-      } catch (e) {}
-      readerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!result) return;
-
-    const controller = new AbortController();
-
-    const fetchBookForIsbn = async (isbn) => {
-      try {
-        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`, { signal: controller.signal });
-        if (!response.ok) {
-          console.error('Google Books API error, status:', response.status);
-          return;
-        }
-        const data = await response.json();
-        if (data && data.totalItems > 0 && Array.isArray(data.items) && data.items.length) {
-          const info = data.items[0].volumeInfo || {};
-          const bookName = "Test " + (info.title || '');
-          const author = info.authors || [];
-          const publisher = info.publisher || '';
-          const publishedDate = info.publishedDate || '';
-          const identifiers = (info.industryIdentifiers && info.industryIdentifiers[1]) ? (info.industryIdentifiers[1].identifier || info.industryIdentifiers[1]) : (info.industryIdentifiers && info.industryIdentifiers[0]) ? (info.industryIdentifiers[0].identifier || info.industryIdentifiers[0]) : isbn;
-          const genre = (info.categories && info.categories[0]) ? info.categories[0] : '';
-          setBookData({ bookname: bookName, isbn: identifiers, author: author, genre: genre, subgenre: genre, publisher: publisher })
-          // Use local variables to avoid stale state when calling addBook
-          const res = await globalCon.addBook(bookName, identifiers, genre, genre, author, publisher);
-          console.log('Google Books info:', info);
-          if (!res) {
-            toast.error('Something went wrong!!', {
-              position: "top-center",
-              autoClose: 1000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              theme: "light",
-            });
-          } else {
-            toast.success('Added Successfully', {
-              position: "top-center",
-              autoClose: 1000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              theme: "light",
-            });
-            setPopupOpen(true);
-          }
-          console.log("Book Name:", bookName);
-          console.log("Author(s):", author);
-          console.log("Publisher:", publisher);
-          console.log("Published Date:", publishedDate);
-          console.log("ISBN-10:", identifiers || '');
-          console.log("Genre(s):", genre);
-        } else {
-          console.warn(`Google Books: no results for ISBN: ${isbn}`);
-        }
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-        console.error("Error fetching book data:", error);
-      }
-      setResult("");
-    };
-
-    fetchBookForIsbn(result);
-
-    return () => controller.abort();
-  }, [result]);
-
+    saveData();
+  }
   return (
-    <>
+    <div>
       <ToastContainer
         position="top-center"
         autoClose={1000}
@@ -167,26 +91,42 @@ const AddBook = () => {
       {loader && <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <DotLoader color="#d38473" />
       </div>}
+      <div className="bg-grey-lighter min-h-screen flex flex-col mt-4">
+        <div className="container max-w-xl mx-auto mt-10 flex flex-col items-center justify-center px-2">
+          <div className="bg-white px-6 py-8 rounded shadow-md text-black w-full">
+            <div className="flex flex-row-reverse"><button onClick={openModal} className="text-center rounded bg-[#d38473] text-white hover:bg-[#bd7667] focus:outline-none p-1">Bulk Upload</button></div>
+            {isModalOpen && <BookBulkUploadModal closeModal={closeModal} />}
+            <h1 className="mb-8 text-3xl text-center">Add Book</h1>
+            <form onSubmit={handleSignup}>
+              <input value={userData.bookname} onChange={handleChange} type="text" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="bookname" placeholder="Book Name" required />
+              <input value={userData.isbn} onChange={handleChange} onKeyUp={checkVal} type="number" id="isbn" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="isbn" placeholder="ISBN" required />
+
+              <input value={userData.author} onChange={handleChange} type="text" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="author" placeholder="Author" required />
+              <input value={userData.genre} onChange={handleChange} type="text" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="genre" placeholder="Genre" required />
+              <input value={userData.subgenre} onChange={handleChange} type="text" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="subgenre" placeholder="Subgenre" required />
+              <input value={userData.publisher} onChange={handleChange} type="text" className="mb-4 block w-full h-10 rounded-md p-2 border-0 py-1.5 outline-none text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-[#d38473] sm:text-sm sm:leading-6" name="publisher" placeholder="Publisher" required />
 
 
-      <div style={{ textAlign: "center" }}>
-        <h2 className="text-center font-extrabold text-2xl m-4">Barcode Scanner</h2>
-        <div style={{ margin: 'auto', width: '800px', maxWidth: '100%', height: '60vh', position: 'relative', borderRadius: 10, overflow: 'hidden' }}>
-          <video
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-          />
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <img src={QrFrame} alt="frame" style={{ width: '100%', height: '100%', objectFit: 'contain', maxWidth: '800px', maxHeight: '60vh' }} />
+              <button disabled={loader}
+                type="submit"
+                className="w-full text-center py-3 rounded bg-green bg-[#d38473] text-white hover:bg-[#bd7667] focus:outline-none my-1"
+              >
+                Add
+              </button>
+            </form>
+            <p className="mt-2 text-center text-sm text-gray-500">
+              <a
+                href={"/#/addbook"}
+                className="font-semibold leading-6 text-[#d38473] hover:[#bd7667]"
+              >
+                Add Book Scan Barcode
+              </a>
+            </p>
           </div>
         </div>
-        <h3>Result: {result}</h3>
+        <BookQrPopUp isOpen={isPopupOpen} onClose={() => setPopupOpen(false)} bookId={book_id} title={book_title} isbn={book_isbn} />
       </div>
-
-    </>
+    </div>
   )
 }
 

@@ -126,6 +126,7 @@ const GlobalContext = (props) => {
       );
       if (!response.ok) {
         try {
+          console.log("book not found, adding new book");
           const body = JSON.stringify({
             merchant_id: localStorage.getItem("merchantId"),
             library_id: localStorage.getItem("libraryId"),
@@ -157,6 +158,7 @@ const GlobalContext = (props) => {
         }
       } else {
         const bookCopyData = await addBookCopy(isbn);
+        console.log("Add new copy");
         return bookCopyData;
       }
     } catch (err) {
@@ -169,7 +171,8 @@ const GlobalContext = (props) => {
         merchant_id: localStorage.getItem("merchantId"),
         library_id: localStorage.getItem("libraryId"),
         isbn: isbn,
-        status: "A"
+        no_of_copies: 1
+        // status: "A"
       });
       const response = await fetch(
         "https://coffee-beans.addlib.club/books/copies",
@@ -182,10 +185,13 @@ const GlobalContext = (props) => {
           },
         }
       );
+      console.log(response + "response ");
       if (!response.ok) {
+        console.log("Not ok");
         return null;
       }
       const data = await response.json();
+      console.log(data);
       return data;
     } catch (err) {
       return null;

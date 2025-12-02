@@ -26,6 +26,7 @@ import { ToastContainer} from 'react-toastify';
 import NotFoundPage from './components/NotFoundPage';
 import BarcodeReaderBetaV from './components/BarcodeReaderBeta/BarcodeReaderBetaV';
 import Element from './components/ExchangeFlow/Exchange';
+import AddBookBarcodeFlow from './components/BookMeta/AddBookBarcodeFlow';
 
 const App = () => {
   return (
@@ -49,7 +50,8 @@ const App = () => {
      <Route path="/issue" element={<Isuue/>}/>
      <Route path="/issued" element={<Issued/>}/>
      <Route path="/return" element={<Return/>}/>
-     <Route path="/addbook" element={<AddBook/>}/>
+     <Route path="/addbookentry" element={<AddBook/>}/>
+     <Route path="/addbook" element={<AddBookBarcodeFlow/>}/>
      <Route path="/addreader" element={<AddReader/>}/>
      <Route path="/exchange" element={<Element/>}/>
      <Route path="/services" element={<Services/>}/>
