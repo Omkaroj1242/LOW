@@ -5,11 +5,15 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { globalContext } from '../../contextapi/GlobalContext'
 import { BounceLoader, DotLoader } from "react-spinners";
+import QrFrame from '../../assets/qr-frame.svg'
 
 
 
 const AddBook = () => {
   const videoRef = useRef(null);
+  const readerRef = useRef(null);
+  const scanningPausedRef = useRef(false);
+  const mountedRef = useRef(true);
   const [result, setResult] = useState("");
   const globalCon = useContext(globalContext);
   const [isPopupOpen, setPopupOpen] = React.useState(false);
@@ -33,32 +37,49 @@ const AddBook = () => {
       BarcodeFormat.CODABAR
     ];
     hints.set(DecodeHintType.POSSIBLE_FORMATS, barcodeFormats);
-    const reader = new BrowserMultiFormatReader(hints);
+    mountedRef.current = true;
+    readerRef.current = new BrowserMultiFormatReader(hints);
 
-    // start decoding from default device
-    if (videoRef.current) {
-      reader.decodeFromVideoDevice(null, videoRef.current, (res, err) => {
-        if (res) {
-          setResult(res.getText());
-        }
-        // NotFoundException is expected frequently while scanning; log other errors
-        if (err && err.name !== "NotFoundException") {
-          console.error("Barcode decode error:", err);
-        }
-      }).catch((e) => {
-        console.error("Failed to start decodeFromVideoDevice:", e);
-      });
-    } else {
-      console.error('videoRef.current is not available');
+    const startReader = async () => {
+      if (!videoRef.current || !readerRef.current) return;
+      try {
+        readerRef.current.decodeFromVideoDevice(null, videoRef.current, (res, err) => {
+          if (res) {
+            // throttle handling to avoid rapid repeated scans
+            if (!scanningPausedRef.current) {
+              scanningPausedRef.current = true;
+              setResult(res.getText());
+              // stop continuous scanning and restart after cooldown
+              try { readerRef.current.reset(); } catch (e) {}
+              setTimeout(() => {
+                if (!mountedRef.current) return;
+                try { startReader(); } catch (e) {}
+                scanningPausedRef.current = false;
+              }, 1500); // 1.5s cooldown between scans
+            }
+          }
+          // NotFoundException is expected frequently while scanning; log other errors
+          if (err && err.name !== "NotFoundException") {
+            console.error("Barcode decode error:", err);
+          }
+        }).catch((e) => {
+          // Starting the decoder can fail if camera is blocked
+          console.error("Failed to start decodeFromVideoDevice:", e);
+        });
+      } catch (e) {
+        console.error('Error initializing barcode reader', e);
+      }
     }
 
+    // kick off reader
+    startReader();
+
     return () => {
-      // stop camera and decoding 
+      mountedRef.current = false;
       try {
-        reader.reset();
-      } catch (e) {
-        console.error("Failed to reset reader:", e);
-      }
+        readerRef.current?.reset();
+      } catch (e) {}
+      readerRef.current = null;
     };
   }, []);
 
@@ -75,17 +96,18 @@ const AddBook = () => {
           return;
         }
         const data = await response.json();
-        if (data.totalItems > 0 && data.items && data.items.length) {
-          const info = data.items[0].volumeInfo;
-          const bookName = "Test " + info.title;
+        if (data && data.totalItems > 0 && Array.isArray(data.items) && data.items.length) {
+          const info = data.items[0].volumeInfo || {};
+          const bookName = "Test " + (info.title || '');
           const author = info.authors || [];
           const publisher = info.publisher || '';
           const publishedDate = info.publishedDate || '';
-          const identifiers = info.industryIdentifiers[1] || [];
-          const genre = info.categories[0] || [];
+          const identifiers = (info.industryIdentifiers && info.industryIdentifiers[1]) ? (info.industryIdentifiers[1].identifier || info.industryIdentifiers[1]) : (info.industryIdentifiers && info.industryIdentifiers[0]) ? (info.industryIdentifiers[0].identifier || info.industryIdentifiers[0]) : isbn;
+          const genre = (info.categories && info.categories[0]) ? info.categories[0] : '';
           setBookData({ bookname: bookName, isbn: identifiers, author: author, genre: genre, subgenre: genre, publisher: publisher })
-          const res = await globalCon.addBook(bookData.bookname, bookData.isbn, bookData.author, bookData.genre, bookData.subgenre, bookData.publisher);
-          console.log(info);
+          // Use local variables to avoid stale state when calling addBook
+          const res = await globalCon.addBook(bookName, identifiers, genre, genre, author, publisher);
+          console.log('Google Books info:', info);
           if (!res) {
             toast.error('Something went wrong!!', {
               position: "top-center",
@@ -114,6 +136,8 @@ const AddBook = () => {
           console.log("Published Date:", publishedDate);
           console.log("ISBN-10:", identifiers || '');
           console.log("Genre(s):", genre);
+        } else {
+          console.warn(`Google Books: no results for ISBN: ${isbn}`);
         }
       } catch (error) {
         if (error.name === 'AbortError') return;
@@ -147,15 +171,18 @@ const AddBook = () => {
 
       <div style={{ textAlign: "center" }}>
         <h2 className="text-center font-extrabold text-2xl m-4">Barcode Scanner</h2>
-        <video
-          style={{ margin: "auto", borderRadius: "10px", objectFit: "cover", width: "800px", height: "60vh" }}
-          ref={videoRef}
-          width="500"
-          height="500"
-          autoPlay
-          muted
-          playsInline
-        />
+        <div style={{ margin: 'auto', width: '800px', maxWidth: '100%', height: '60vh', position: 'relative', borderRadius: 10, overflow: 'hidden' }}>
+          <video
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+          />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <img src={QrFrame} alt="frame" style={{ width: '100%', height: '100%', objectFit: 'contain', maxWidth: '800px', maxHeight: '60vh' }} />
+          </div>
+        </div>
         <h3>Result: {result}</h3>
       </div>
 
